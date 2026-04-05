@@ -1,141 +1,169 @@
- 
----
 
-# 📌 CamposDB - Inserção de Registros via Bash + MySQL
+# 🚀 Projeto CamposDB
 
-Script interativo em Bash para inserção de registros na tabela `tblCampos` do banco **MySQL**, com validações básicas, entrada guiada e tratamento de dados.
+Sistema de gerenciamento de banco de dados local para controle de escopos, locadores e acompanhamento de negociações. Este projeto foca em portabilidade, segurança básica e automação de backups.
 
 ---
 
-## 🚀 Objetivo
+## 🐧 Guia para Linux (Ubuntu & Derivados)
 
-Facilitar a inserção de dados no banco **CamposDB**, eliminando a necessidade de comandos SQL manuais e reduzindo erros operacionais.
+### 0. Instalação e Hardening
+```bash
+# 1. Atualizar repositórios
+sudo apt update && sudo apt upgrade -y
+
+# 2. Instalar MySQL Server
+sudo apt install mysql-server -y
+
+# 3. Verificar status
+sudo systemctl status mysql
+
+# 4. Segurança (IMPORTANTE)
+sudo mysql_secure_installation
+```
+
+### 1. Acesso ao Servidor
+Para acesso direto no servidor (Local):
+```bash
+sudo mysql -u root -p
+```
+> **Dica:** Para hosts remotos, adicione `-h nome_servidor` ao comando.
 
 ---
 
-## ⚙️ Funcionalidades
+## 🏗️ Estrutura do Banco de Dados
 
-* 🔐 Autenticação segura (usuário + senha via prompt)
-* 🔍 Teste automático de conexão com MySQL
-* 🧾 Entrada de dados guiada e amigável
-* 📅 Datas automáticas (ex: próximo contato +7 dias)
-* 📝 Campos multilinha (Histórico e Anotações)
-* 🛡️ Tratamento de strings (escape de aspas simples)
-* ✅ Confirmação antes da inserção
-* 🆔 Retorno do `LAST_INSERT_ID()`
-
----
-
-## 🧱 Estrutura da Tabela (esperada)
-
-A tabela `tblCampos` deve conter os seguintes campos:
-
+### 2. Criar Schema e Tabela
 ```sql
-Escopo
-Proximo_Contato
-Sigla
-Locador_Contato
-Locador
-CPF
-CNPJ
-Tipo_Negociacao
-Inicio
-Termino
-Telefones
-Email
-SAP
-Solicitacao_QA
-Historico
-Anotacoes
+CREATE DATABASE camposdb 
+CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE camposdb;
+
+CREATE TABLE tblCampos (
+  ID INT AUTO_INCREMENT PRIMARY KEY,
+  Escopo VARCHAR(100),
+  Proximo_Contato DATETIME,
+  Sigla VARCHAR(20),
+  Locador_Contato VARCHAR(200),
+  Historico TEXT,
+  SAP VARCHAR(50),
+  Tipo_Negociacao VARCHAR(100),
+  Movimentacao VARCHAR(50),
+  Inicio DATETIME,
+  Termino DATETIME,
+  Intervalo_Dias INT,
+  Fly_Conecta BOOLEAN DEFAULT FALSE,
+  Solicitacao_QA VARCHAR(200),
+  Locador VARCHAR(200),
+  CPF VARCHAR(20),
+  CNPJ VARCHAR(20),
+  Anotacoes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+```
+
+### 3. Gestão de Usuários (Controle de Acesso)
+Criar usuário de aplicação com permissões CRUD:
+```sql
+CREATE USER 'paulo_roberto'@'%' IDENTIFIED BY 'CamposDB1!';
+
+GRANT SELECT, INSERT, UPDATE, DELETE 
+ON camposdb.* TO 'paulo_roberto'@'%';
+
+FLUSH PRIVILEGES;
 ```
 
 ---
 
-## 📥 Como usar
+## 📝 Operações Diárias (Templates)
 
-### 1. Clonar o repositório
+### 4. Inserção de Dados (INSERT)
+```sql
+INSERT INTO tblCampos (
+  Escopo, Proximo_Contato, Sigla, Locador_Contato, 
+  Historico, SAP, Tipo_Negociacao, Inicio, Termino,
+  Locador, CPF, CNPJ, Anotacoes
+) VALUES (
+  'Exemplo Escopo', '2026-03-30 10:00:00', 'ABC', 'João Silva',
+  'Histórico detalhado...', 'SAP12345', 'Negociação Inicial', 
+  '2026-03-23 09:00:00', '2026-03-23 11:00:00',
+  'João Silva LTDA', '123.456.789-00', '12.345.678/0001-99', 'Anotações adicionais'
+);
+```
 
+### 5. View de Acompanhamento
+Otimizada para visualização rápida de status:
+```sql
+CREATE VIEW vwCamposResumo AS
+SELECT 
+  ID, Escopo, Locador, Proximo_Contato,
+  CASE 
+    WHEN Fly_Conecta THEN '✅ Conectado'
+    WHEN Locador IS NOT NULL THEN '✅ Cadastro OK'
+    ELSE '⏳ Pendente'
+  END AS Status,
+  Inicio, Termino
+FROM tblCampos;
+
+-- Uso:
+SELECT * FROM vwCamposResumo WHERE Proximo_Contato <= NOW() + INTERVAL 7 DAY;
+```
+
+---
+
+## 💾 Backup e Automação
+
+### Linux (Bash + Cron)
+Crie o script `~/backup_camposdb.sh`:
 ```bash
-git clone https://github.com/seu-usuario/camposdb-script.git
-cd camposdb-script
+#!/bin/bash
+DATA=$(date +%F)
+DESTINO="$HOME/backups"
+mkdir -p $DESTINO
+
+mysqldump -u root -p camposdb --single-transaction --routines --triggers > $DESTINO/camposdb_$DATA.sql
 ```
 
-### 2. Dar permissão de execução
-
-```bash
-chmod +x campos_insert_v3.sh
-```
-
-### 3. Executar o script
-
-```bash
-./campos_insert_v3.sh
+**Agendamento (Crontab):**
+```text
+0 2 * * * /home/$USER/backup_camposdb.sh
 ```
 
 ---
 
-## 💡 Fluxo de Execução
+## 🪟 Guia para Windows 11
 
-![Image](https://images.openai.com/static-rsc-4/KlnWgjjCzWd6fhBKerJY3db-W1JKmJkP1j1LAh8K0HiqxnpfU1XeiL4FNFqNXHgDu9yxTSeUtnRsdVbgZhlDRIGCNHS8PwGM46cADupsUiOTihJv2o4HlDyaxs6KAqrRSNBRk5XKf5qF7bky_-OtId77q1TRZ_FLTlHf5Dup9rY3isMmsj2uEddfNRIX9qKb?purpose=fullsize)
+### Fase 1: Instalação
+1. Baixe o [MySQL Installer](https://dev.mysql.com/downloads/installer/).
+2. Escolha **"Server Only"** ou **"Developer Default"**.
+3. Configure a porta `3306` e defina a senha do Root.
 
-![Image](https://images.openai.com/static-rsc-4/6hDq9wnkHhifTMkKRR3FW0vMD9Zpgh4Zt3VrK0S8E2B4RNq-tYCEq_IcjgVhG433QcXL6fFjkx9nsqwy0I5d4n4_BUdGFYDW8zO4-br1tlnVoWvRJ9JWJgfTKVFBJsio2hO4l2Mdy9liY-iljtjq94cIH1JszXu_0uWw1t1eku4ocf1hDqx-JW7B-KHcFHl9?purpose=fullsize)
+### Fase 2: Backup Automatizado (PowerShell)
+Crie o arquivo `Backup-CamposDB.ps1`:
+```powershell
+$Data = Get-Date -Format "yyyy-MM-dd_HH-mm"
+$BackupDir = "C:\Backups\MySQL\"
+$DumpFile = "$BackupDir\camposdb_$Data.sql"
 
-![Image](https://images.openai.com/static-rsc-4/GkI2BoxD29jE8WoiV4bEh5sbh4v25IlojRd7p88zKJHZ-v9iZSDJF2-ZNtM37J_vsBUhgTrFSWcZpkntIF5uRTB4cnBOMa4PXz4S0QYczHlnDnzqdEIdYYnhzWn14GNmeznpAvY5HJc4kCGz2rbTD4eiGsUACg3sJe5umei1sQy4gLGl7VRTDGS_STKL7hNZ?purpose=fullsize)
+New-Item -ItemType Directory -Force -Path $BackupDir
 
-![Image](https://images.openai.com/static-rsc-4/6op8K0jAC7F_8kSkV0wnW6K65Ve20bMXzCpr30nbxwoyg9scRcosAxZJHaSBxcO_J-O9Jj-PyX1s12E0PlOljYKLeehcVBhQlC38s3ZIxQAGm-wChFPcAcwZj9yRd--wYiq_hoGBgEca0qFZp9Wvyx0WAaG9oCrP0XrCqR7MRYlh0nUgXcavjBJhS4yd60Nr?purpose=fullsize)
-
-![Image](https://images.openai.com/static-rsc-4/u2xC0-s_vkHrQ4PtHt5rL6zwbzTht-chYvVoc0IEQ4VxgEUVtfFr99HPpfzJ06y4iRnW1HzUG4uqQjoZ70ABaQRvwXziKZbv8zivDw5Tabun6OKXITTiuFYEvXFw6nbnm8l-kGuEVr9plglltGb_gnO2gClwU5Z0CAmA2vNNLxdJPxwvsWkJSaQZETSG9S30?purpose=fullsize)
-
-1. Usuário informa credenciais MySQL
-2. Script valida conexão
-3. Usuário preenche os dados do registro
-4. Confirmação da operação
-5. Inserção no banco
-6. Retorno do ID gerado
-
----
-
-## ⚠️ Pré-requisitos
-
-* Linux / WSL / MacOS
-* MySQL Client instalado (`mysql`)
-* Acesso ao banco de dados
-* Permissão de INSERT na tabela
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe" `
+  -u root -pSuaSenha `
+  --single-transaction --routines camposdb `
+  | Out-File -FilePath $DumpFile -Encoding UTF8
+```
 
 ---
 
-## 🛡️ Boas práticas aplicadas
-
-* Uso de `MYSQL_PWD` para evitar exposição direta da senha no comando
-* Validação de conexão antes da execução
-* Escape de caracteres especiais (`sed`)
-* Campos obrigatórios com validação (`while`)
-* Valores padrão para evitar falhas
-
----
-
-## 📌 Possíveis melhorias (roadmap)
-
-* [ ] Uso de `.env` para credenciais
-* [ ] Log de inserções
-* [ ] Validação de CPF/CNPJ
-* [ ] Menu interativo (CRUD completo)
-* [ ] Exportação para CSV/relatórios
-* [ ] Dockerização do ambiente
+## ✅ Resumo do Workflow
+| Recurso | Descrição |
+| :--- | :--- |
+| **Segurança** | Usuário `paulo_roberto` limitado ao banco `camposdb`. |
+| **Visualização** | Utilização da View `vwCamposResumo` para filtros rápidos. |
+| **Backup** | Automatizado via Cron (Linux) ou Task Scheduler (Windows). |
+| **Ferramentas** | Compatível com MySQL Workbench e CLI. |
 
 ---
-
-## 👨‍💻 Autor
-
-**David Lima**
-Especialista em Banco de Dados | Oracle & MySQL | Suporte N2/N3
-
----
-
-## 📄 Licença
-
-Este projeto está sob a licença MIT. Sinta-se livre para usar e modificar.
-
----
-
- 
+**Desenvolvido para gerenciamento local de dados.** 🚀
